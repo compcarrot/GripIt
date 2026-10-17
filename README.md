@@ -19,6 +19,14 @@ npm run build
 npm run preview
 ```
 
+## Throw session
+
+After selecting a grip, use **Next: ready to throw** below the viewer. Enter velocity (mph), total spin (rpm), spin direction (clock time), spin efficiency (%) or gyro degree, and release height (ft). Add or remove throws and review the session for average velocity and spin. Input limits catch likely typos, not performance targets. One throw is supported.
+
+**Load sample session** inserts clearly labeled synthetic data. Sample provenance stays attached even if those rows are edited; use **Start my own session** to clear it for real data. JSON export includes the canonical throw metrics, selected pitch, handedness, hand measurements in mm, and data source. Each pitch and throwing hand has a separate draft. Drafts stay in memory while switching between the studio and entry screen; refreshing or closing the tab clears them.
+
+Grip scoring and focus-area recommendations are not connected yet. No cause or performance advice is inferred from these entries. The entry parser is in `src/rapsodo.ts`, and the UI is isolated in `src/SessionPanel.tsx` and `src/session.css`.
+
 ## Scan: no measurements to type
 
 1. Put a **regulation baseball** beside one open hand against a dark, uncluttered background. Do not hold the ball inside the scanning hand.
