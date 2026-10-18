@@ -1,7 +1,5 @@
-// The Swift host opens a native share sheet. Browsers keep their normal download.
-export function downloadJSON(filename: string, value: unknown) {
-  const content = JSON.stringify(value, null, 2);
-  const native = (
+function nativeExportBridge() {
+  return (
     window as Window & {
       webkit?: {
         messageHandlers?: {
@@ -10,6 +8,16 @@ export function downloadJSON(filename: string, value: unknown) {
       };
     }
   ).webkit?.messageHandlers?.gripit;
+}
+
+export function isNativeHost() {
+  return Boolean(nativeExportBridge());
+}
+
+// The Swift host opens a native share sheet. Browsers keep their normal download.
+export function downloadJSON(filename: string, value: unknown) {
+  const content = JSON.stringify(value, null, 2);
+  const native = nativeExportBridge();
   if (native) {
     native.postMessage({ action: "export", filename, content });
     return;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -10,6 +10,8 @@ import {
 import { emptyThrow, sampleSession, validateThrow } from "./rapsodo";
 import type { ThrowDraft } from "./rapsodo";
 import type { Measurements } from "./grip";
+import { isNativeHost } from "./download";
+import { saveRapsodoSession } from "./rapsodoSession";
 import "./session.css";
 
 interface Props {
@@ -29,11 +31,13 @@ export function SessionPanel({
   measurements,
   onBack,
 }: Props) {
-  // Keep sessions separate when returning to the studio and choosing another pitch/hand.
+  const native = isNativeHost();
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  // A new scan gets a separate draft so old throws cannot attach to a new hand.
   const [sessions, setSessions] = useState<
     Record<string, { rows: ThrowDraft[]; sample: boolean }>
   >({});
-  const key = `${pitchId}-${left ? "left" : "right"}`;
+  const key = `${pitchId}-${left ? "left" : "right"}-${personalized ? "scan" : "sample"}-${JSON.stringify(measurements)}`;
   const session = sessions[key] ?? { rows: [emptyThrow(1)], sample: false };
   const { rows, sample } = session;
   const [attempted, setAttempted] = useState(false);
@@ -44,6 +48,15 @@ export function SessionPanel({
     setReviewed(false);
     setTouched({});
   }, [key]);
+  useEffect(() => {
+    if (reviewed) {
+      reviewHeading.current?.focus({ preventScroll: true });
+      reviewHeading.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [reviewed]);
   const update = (nextRows: ThrowDraft[], nextSample = sample) => {
     setSessions((prev) => ({
       ...prev,
@@ -66,32 +79,11 @@ export function SessionPanel({
     setTouched({});
   };
   const exportSession = () => {
-    const blob = new Blob(
-      [
-        JSON.stringify(
-          {
-            version: 1,
-            source: sample ? "synthetic_demo" : "rapsodo_manual",
-            recordedAt: new Date().toISOString(),
-            pitch: pitchId,
-            handedness: left ? "left" : "right",
-            handSource: personalized ? "scan" : "sample",
-            measurementUnits: "mm",
-            measurements,
-            throws: validThrows,
-          },
-          null,
-          2,
-        ),
-      ],
-      { type: "application/json" },
+    saveRapsodoSession(
+      { pitchId, left, personalized, measurements },
+      rows,
+      sample,
     );
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `gripit-${pitchId}-${sample ? "sample" : "session"}.json`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -156,6 +148,7 @@ export function SessionPanel({
             <div className="sample-tools">
               <span>Just exploring the prototype?</span>
               <button
+                data-testid="load-sample-session"
                 onClick={() => {
                   update(sampleSession(), true);
                   setAttempted(false);
@@ -299,7 +292,9 @@ export function SessionPanel({
                                     : "number"
                                 }
                                 inputMode={
-                                  field.key === "spin_direction"
+                                  field.key === "spin_direction" ||
+                                  (field.key === "spin_value" &&
+                                    row.efficiencyMode === "gyro")
                                     ? "text"
                                     : "decimal"
                                 }
@@ -308,6 +303,8 @@ export function SessionPanel({
                                   ? { min: field.min, max: field.max }
                                   : {})}
                                 autoComplete="off"
+                                autoCapitalize="off"
+                                spellCheck={false}
                                 value={row[field.key]}
                                 placeholder={field.placeholder}
                                 aria-invalid={Boolean(error)}
@@ -359,11 +356,18 @@ export function SessionPanel({
               )}
               <div className="session-actions">
                 <span>
-                  Your data stays in this browser tab.
+                  {native
+                    ? "Your entries stay on this device while the app is open."
+                    : "Your data stays in this browser tab."}
                   <br />
-                  Export it before closing or refreshing.
+                  Save the session before closing
+                  {native ? "." : " or refreshing."}
                 </span>
-                <button className="primary" type="submit">
+                <button
+                  className="primary"
+                  type="submit"
+                  data-testid="review-session"
+                >
                   Review session <ArrowRight size={16} />
                 </button>
               </div>
@@ -379,7 +383,9 @@ export function SessionPanel({
               <span className="eyebrow">
                 {sample ? "SAMPLE SESSION" : "SESSION READY"}
               </span>
-              <h2 id="review-heading">Your session at a glance.</h2>
+              <h2 id="review-heading" ref={reviewHeading} tabIndex={-1}>
+                Your session at a glance.
+              </h2>
               <div className="session-stats">
                 <div>
                   <strong>{validThrows.length}</strong>
@@ -415,10 +421,21 @@ export function SessionPanel({
                 rule table is connected. These numbers alone cannot identify a
                 finger as the cause.
               </p>
-              <button className="primary" onClick={exportSession}>
-                <ArrowDownToLine size={16} /> Export{" "}
+              <button
+                className="primary"
+                onClick={exportSession}
+                data-testid="save-session"
+              >
+                <ArrowDownToLine size={16} />{" "}
+                {native ? "Save or share" : "Export"}{" "}
                 {sample ? "sample" : "session"} JSON
               </button>
+              {native && (
+                <p className="session-save-note">
+                  Choose Save to Files or AirDrop in the share sheet. Saving
+                  does not submit your data to Rapsodo.
+                </p>
+              )}
             </section>
           )}
         </div>
@@ -451,9 +468,9 @@ export function SessionPanel({
           </ol>
           <div className="session-consistency">
             <span>
-              {rows.length >= 3
-                ? "03+ THROWS ENTERED"
-                : `${rows.length} / 3 THROWS ENTERED`}
+              {validThrows.length >= 3
+                ? "03+ VALID THROWS"
+                : `${validThrows.length} / 3 VALID THROWS`}
             </span>
             <p>
               {validThrows.length >= 3

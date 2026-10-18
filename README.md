@@ -31,6 +31,8 @@ After selecting a grip, use **Next: ready to throw** below the viewer. Enter vel
 
 Grip scoring and focus-area recommendations are not connected yet. No cause or performance advice is inferred from these entries. The entry parser is in `src/rapsodo.ts`, and the UI is isolated in `src/SessionPanel.tsx` and `src/session.css`.
 
+In the iOS app, session exports use the native share sheet through `src/download.ts`. Tap **Save or share session JSON** and choose Save to Files or AirDrop. Run `npm run ios:prepare` after changing web screens so the Xcode bundle contains the updated flow. See `ios/README.md` for device setup and integration checks.
+
 ## Scan: no measurements to type
 
 1. Put a **regulation baseball** beside one open hand against a dark, uncluttered background. Do not hold the ball inside the scanning hand.

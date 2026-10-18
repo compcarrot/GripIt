@@ -412,7 +412,11 @@ export default function App() {
               <h2>Got a feel for your grip?</h2>
               <p>Take it to the mound, then record your Rapsodo numbers.</p>
             </div>
-            <button className="primary" onClick={() => goToStep("session")}>
+            <button
+              className="primary"
+              data-testid="record-throws"
+              onClick={() => goToStep("session")}
+            >
               Next: ready to throw <ArrowRight size={17} />
             </button>
           </section>

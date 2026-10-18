@@ -81,6 +81,48 @@ final class LocalAssetServerTests: XCTestCase {
     let export = try XCTUnwrap(model.export)
     XCTAssertEqual(try String(contentsOf: export.url, encoding: .utf8), "{\"pitch\":\"slider\"}")
     try FileManager.default.removeItem(at: export.url)
+
+    // Exercise the user-facing Rapsodo flow through the bundled React UI and
+    // verify that saving reaches the real Swift bridge, not a browser blob URL.
+    model.export = nil
+    _ = try await view.evaluateJavaScript(
+      "document.querySelector('[data-testid=record-throws]').click(); true")
+    let enteredSession = try await waitFor(
+      "!document.querySelector('.throw-session').closest('[hidden]')", in: view)
+    XCTAssertTrue(enteredSession)
+    _ = try await view.evaluateJavaScript(
+      "document.querySelector('[data-testid=review-session]').click(); true")
+    let invalidInputsShown = try await waitFor(
+      "document.querySelectorAll('.throw-session [aria-invalid=true]').length === 5", in: view)
+    XCTAssertTrue(invalidInputsShown, "An empty throw must not pass validation")
+    XCTAssertNil(model.export)
+    _ = try await view.evaluateJavaScript(
+      "document.querySelector('[data-testid=load-sample-session]').click(); true")
+    let sampleLoaded = try await waitFor(
+      "document.querySelector('#throw-3-velocity_mph')?.value === '77'", in: view)
+    XCTAssertTrue(sampleLoaded)
+    _ = try await view.evaluateJavaScript(
+      "document.querySelector('[data-testid=review-session]').click(); true")
+    let reviewedSession = try await waitFor(
+      "!!document.querySelector('[data-testid=save-session]')", in: view)
+    XCTAssertTrue(reviewedSession)
+    _ = try await view.evaluateJavaScript(
+      "document.querySelector('[data-testid=save-session]').click(); true")
+    for _ in 0..<30 {
+      if model.export != nil { break }
+      try await Task.sleep(nanoseconds: 100_000_000)
+    }
+    let sessionExport = try XCTUnwrap(model.export)
+    let sessionData = try Data(contentsOf: sessionExport.url)
+    let session = try XCTUnwrap(JSONSerialization.jsonObject(with: sessionData) as? [String: Any])
+    XCTAssertEqual(session["source"] as? String, "synthetic_demo")
+    XCTAssertEqual(session["pitch"] as? String, "four-seam")
+    let recordedThrows = try XCTUnwrap(session["throws"] as? [[String: Any]])
+    XCTAssertEqual(recordedThrows.count, 3)
+    XCTAssertEqual(recordedThrows[0]["spin_axis_deg"] as? Double, 15)
+    XCTAssertEqual(recordedThrows[0]["spin_rate_rpm"] as? Int, 2100)
+    try FileManager.default.removeItem(at: sessionExport.url)
+
     let js = """
       return await new Promise((resolve, reject) => {
         const worker = new Worker(new URL('mediapipe/scan-worker.js', location.href));
@@ -104,6 +146,16 @@ final class LocalAssetServerTests: XCTestCase {
     let ready = try await view.callAsyncJavaScript(js, in: nil, contentWorld: .page)
     XCTAssertEqual(
       ready as? Bool, true, "Bundled MediaPipe should initialize and process a frame on iOS")
+  }
+
+  @MainActor private func waitFor(_ expression: String, in view: WKWebView) async throws -> Bool {
+    for _ in 0..<50 {
+      if let value = try? await view.evaluateJavaScript(expression), value as? Bool == true {
+        return true
+      }
+      try await Task.sleep(nanoseconds: 100_000_000)
+    }
+    return false
   }
 
 }

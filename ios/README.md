@@ -25,6 +25,18 @@ Re-run `npm run ios:prepare` after changing the website. `ios/GripIt/Web` is gen
 
 ## Native integration
 
+### Rapsodo throw entry
+
+After inspecting the fitted grip, tap **Next: ready to throw**. The app carries the pitch, throwing hand, and measurements into the entry flow. Enter five readings per throw: velocity (mph), total spin (rpm), spin direction (hh:mm), efficiency (%) or signed gyro degree, and release height (ft). Add or remove throws, then tap **Review session** for a summary. Validation flags missing values and likely typos; one throw is supported.
+
+**Save or share session JSON** uses the existing native share sheet. Choose **Save to Files** or AirDrop. Exported data includes canonical metric names, hand measurements in mm, pitch, handedness, and timestamp. Filenames include the timestamp to avoid overwriting previous session exports. Drafts remain in memory while going back to the grip view, separated by pitch and throwing hand. Closing or reloading the app clears drafts, so save first.
+
+**Load sample session** inserts three fake throws and labels the screen and export as demo data. Start a new session before entering real readings. Scoring and grip focus areas are not connected yet; the summary does not diagnose a grip or imply that it is optimal.
+
+The UI and export code live in `src/SessionPanel.tsx`, `src/rapsodo.ts`, and `src/rapsodoSession.ts`. No scan or hand-model APIs were changed. Re-run `npm run ios:prepare` before building in Xcode to include this screen. The WebKit integration test covers opening the panel, rejecting an empty throw, reviewing sample throws, and receiving their JSON through the Swift export bridge.
+
+### Host behavior
+
 - SwiftUI hosts the app, loading state, recovery screen, and native share sheet.
 - `WKUIDelegate` grants camera capture only to the app's own loopback origin and only after iOS camera authorization. Microphone capture requests are denied.
 - **Export configuration** and **Download log** open the iOS share sheet; choose **Save to Files**, AirDrop, or another destination. JSON exports are also written to the app's private Documents directory.
